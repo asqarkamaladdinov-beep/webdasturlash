@@ -1,24 +1,301 @@
-const run = () => {
-    requestAnimationFrame(run);
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Top-Down Shooter</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            color: white;
+            user-select: none;
+        }
+        canvas {
+            background: #222;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
 
-    const e0 = elems[0];
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
 
-    const ax = (Math.cos(3 * frm) * rad) / width;
-    const ay = (Math.sin(4 * frm) * rad) / height;
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
 
-    e0.x += (ax + pointer.x - e0.x) / 10;
-    e0.y += (ay + pointer.y - e0.y) / 10;
+        // O'yin o'zgaruvchilari
+        let score = 0;
+        let gameOver = false;
+        let enemySpawnTimer = 0;
 
-    for (let i = 1; i < N; i++) {
-        const e = elems[i];
-        const ep = elems[i - 1];
+        // O'yinchi obyekti
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 15,
+            color: "#4e73df",
+            speed: 4,
+            health: 100,
+            angle: 0
+        };
 
-        const a = Math.atan2(ep.y - e.y, ep.x - e.x);
+        // Harakat uchun tugmalar holati
+        const keys = {
+            w: false,
+            s: false,
+            a: false,
+            d: false
+        };
 
-        e.x = ep.x - Math.cos(a) * dist; // (rasmdagi qismga qarab yozildi)
-        e.y += (ep.y - e.y + Math.sin(a) * 10) / 4;
-    }
+        // Sichqoncha holati
+        const mouse = {
+            x: canvas.width / 2,
+            y: canvas.height / 2
+        };
 
-    const s = (16 / (24 - i)) / 50;
-    // ... (qolgan qismi rasmda to'liq ko'rinmagan)
-}
+        let bullets = [];
+        let enemies = [];
+        let particles = [];
+
+        // Hodisalarni tinglash
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "w" || e.key === "W") keys.w = true;
+            if (e.key === "s" || e.key === "S") keys.s = true;
+            if (e.key === "a" || e.key === "A") keys.a = true;
+            if (e.key === "d" || e.key === "D") keys.d = true;
+        });
+
+        window.addEventListener("keyup", (e) => {
+            if (e.key === "w" || e.key === "W") keys.w = false;
+            if (e.key === "s" || e.key === "S") keys.s = false;
+            if (e.key === "a" || e.key === "A") keys.a = false;
+            if (e.key === "d" || e.key === "D") keys.d = false;
+        });
+
+        canvas.addEventListener("mousemove", (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener("click", () => {
+            if (gameOver) {
+                resetGame();
+                return;
+            }
+
+            // O'q otish
+            const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+            bullets.push({
+                x: player.x,
+                y: player.y,
+                speed: 10,
+                dx: Math.cos(angle) * 10,
+                dy: Math.sin(angle) * 10,
+                radius: 4
+            });
+        });
+
+        // Dushman qo'shish
+        function spawnEnemy() {
+            let x, y;
+            if (Math.random() < 0.5) {
+                x = Math.random() < 0.5 ? 0 : canvas.width;
+                y = Math.random() * canvas.height;
+            } else {
+                x = Math.random() * canvas.width;
+                y = Math.random() < 0.5 ? 0 : canvas.height;
+            }
+
+            enemies.push({
+                x: x,
+                y: y,
+                radius: 12,
+                color: "#e74a3b",
+                speed: 2
+            });
+        }
+
+        // O'yinni qaytadan boshlash
+        function resetGame() {
+            score = 0;
+            player.health = 100;
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            bullets = [];
+            enemies = [];
+            particles = [];
+            gameOver = false;
+        }
+
+        // Zarrachalar (portlash effekti)
+        function createParticles(x, y, color) {
+            for (let i = 0; i < 6; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    dx: (Math.random() - 0.5) * 4,
+                    dy: (Math.random() - 0.5) * 4,
+                    radius: Math.random() * 3 + 1,
+                    color: color,
+                    life: 30
+                });
+            }
+        }
+
+        // Yangilash (Update)
+        function update() {
+            if (gameOver) return;
+
+            // O'yinchi harakati
+            if (keys.w && player.y - player.radius > 0) player.y -= player.speed;
+            if (keys.s && player.y + player.radius < canvas.height) player.y += player.speed;
+            if (keys.a && player.x - player.radius > 0) player.x -= player.speed;
+            if (keys.d && player.x + player.radius < canvas.width) player.x += player.speed;
+
+            // Sichqonchaga qarab burilish burchagi
+            player.angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+
+            // O'qlarni yangilash
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                bullets[i].x += bullets[i].dx;
+                bullets[i].y += bullets[i].dy;
+
+                // Ekrandan chiqib ketgan o'qlarni o'chirish
+                if (bullets[i].x < 0 || bullets[i].x > canvas.width || bullets[i].y < 0 || bullets[i].y > canvas.height) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // Dushmanlarni chiqarish
+            enemySpawnTimer++;
+            if (enemySpawnTimer > 40) {
+                spawnEnemy();
+                enemySpawnTimer = 0;
+            }
+
+            // Dushmanlarni yangilash va to'qnashuvlar
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                enemy.x += Math.cos(angle) * enemy.speed;
+                enemy.y += Math.sin(angle) * enemy.speed;
+
+                // O'yinchi bilan dushman to'qnashuvi
+                const distPlayer = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+                if (distPlayer < player.radius + enemy.radius) {
+                    player.health -= 1;
+                    if (player.health <= 0) {
+                        gameOver = true;
+                    }
+                }
+
+                // O'q bilan dushman to'qnashuvi
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    const bullet = bullets[j];
+                    const distBullet = Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y);
+                    if (distBullet < bullet.radius + enemy.radius) {
+                        createParticles(enemy.x, enemy.y, "#e74a3b");
+                        enemies.splice(i, 1);
+                        bullets.splice(j, 1);
+                        score += 10;
+                        break;
+                    }
+                }
+            }
+
+            // Zarrachalarni yangilash
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].x += particles[i].dx;
+                particles[i].y += particles[i].dy;
+                particles[i].life--;
+                if (particles[i].life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        // Chizish (Draw)
+        fn = draw = function() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Zarrachalar
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // O'qlar
+            ctx.fillStyle = "#f6c23e";
+            bullets.forEach(b => {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Dushmanlar
+            enemies.forEach(e => {
+                ctx.fillStyle = e.color;
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // O'yinchi
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.rotate(player.angle);
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(0, 0, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            // To'p (lülka)
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, -3, player.radius + 6, 6);
+            ctx.restore();
+
+            // UI (Interfeys - Ball va jon)
+            ctx.fillStyle = "white";
+            ctx.font = "18px Arial";
+            ctx.fillText("Ball: " + score, 20, 30);
+            ctx.fillText("Jon: " + player.health + "%", 20, 60);
+
+            // Game Over ekrani
+            if (gameOver) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "white";
+                ctx.font = "40px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("O'YIN TUGADI", canvas.width / 2, canvas.height / 2 - 20);
+
+                ctx.font = "20px Arial";
+                ctx.fillText("Qayta boshlash uchun bosing", canvas.width / 2, canvas.height / 2 + 30);
+                ctx.textAlign = "left";
+            }
+        };
+
+        // Asosiy o'yin sikli (Game Loop)
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
